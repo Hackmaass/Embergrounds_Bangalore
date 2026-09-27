@@ -171,11 +171,10 @@ export class BaileysWhatsAppChannel implements ChannelAdapter {
     const pushName = msg.pushName || "";
     const fromMe = Boolean(msg.key.fromMe);
 
-    // 1. Self-chat: merchant texting themselves
+    // 1. Self-chat: Omkar (merchant) texting himself
     const isSelfChat = Boolean(
       (userPhone && jidClean === userPhone) ||
-      (userLid && jidClean === userLid) ||
-      (fromMe && (jidClean === userPhone || jidClean === userLid || jid.endsWith("@lid") || !jid.includes("@")))
+      (userLid && jidClean === userLid)
     );
 
     // 2. Atharva Chaskar: team member / collaborator for demo
