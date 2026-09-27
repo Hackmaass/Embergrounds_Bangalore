@@ -7,6 +7,7 @@ import makeWASocket, {
 } from "baileys";
 import pino from "pino";
 import QRCode from "qrcode";
+import type { IdentityRole } from "@cortex/shared";
 import type { ChannelAdapter, InboundEvent, OutboundCard, OutboundText, OutboundVoiceNote } from "./adapter.js";
 
 export type WhatsAppLinkStatus = "DISCONNECTED" | "QR_PENDING" | "CONNECTED";
@@ -38,6 +39,8 @@ export class BaileysWhatsAppChannel implements ChannelAdapter {
   private qrDataUrl: string | undefined;
   private onEvent: ((event: InboundEvent) => Promise<void>) | undefined;
   private storeId = "";
+  private botSentMessageIds = new Set<string>();
+  private atharvaJids = new Set<string>();
 
   constructor(private readonly authDir: string) {}
 
@@ -69,8 +72,6 @@ export class BaileysWhatsAppChannel implements ChannelAdapter {
       // "notify" = a live incoming message. A fresh link also replays chat
       // history under other types — without this guard, a prior demo's
       // "APPROVE dec-xxx" reply gets re-dispatched on every relink.
-      // decideDecision bounds the actual damage (409/404 on a stale
-      // decision), but there's no reason to feed it stale replies at all.
       if (type !== "notify") return;
       for (const msg of messages) {
         void this.handleInbound(msg);
@@ -99,15 +100,17 @@ export class BaileysWhatsAppChannel implements ChannelAdapter {
     if (update.connection === "open") {
       this.status = "CONNECTED";
       this.qrDataUrl = undefined;
+      const userPhone = this.sock?.user?.id?.replace(/[^0-9]/g, "");
+      if (userPhone) {
+        const { allowlistRecipient } = await import("./active-channel.js");
+        allowlistRecipient("WHATSAPP", userPhone);
+      }
       console.log("[whatsapp] Linked and connected.");
     } else if (update.connection === "close") {
       this.status = "DISCONNECTED";
       const statusCode = (update.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output
         ?.statusCode;
 
-      // Tear down the old socket's listeners before opening a new one —
-      // otherwise each reconnect stacks another set of handlers and one
-      // inbound message eventually dispatches N times.
       this.sock?.ev.removeAllListeners("connection.update");
       this.sock?.ev.removeAllListeners("creds.update");
       this.sock?.ev.removeAllListeners("messages.upsert");
@@ -117,11 +120,6 @@ export class BaileysWhatsAppChannel implements ChannelAdapter {
         return;
       }
 
-      // restartRequired (515) fires right after a successful QR pairing —
-      // reconnect immediately. Anything else (network blip, expired QR,
-      // server hiccup) backs off 5s so an unscanned QR doesn't loop a
-      // close/open cycle against WhatsApp's servers indefinitely — the
-      // same flagging risk the voucher-pacing fix addressed.
       const delayMs = statusCode === DisconnectReason.restartRequired ? 0 : 5_000;
       console.error(`[whatsapp] Connection closed (code ${statusCode ?? "unknown"}), reconnecting in ${delayMs}ms...`);
       setTimeout(() => void this.open(), delayMs);
@@ -131,46 +129,78 @@ export class BaileysWhatsAppChannel implements ChannelAdapter {
   private async handleInbound(msg: WAMessage): Promise<void> {
     if (!this.onEvent || !msg.message) return;
     const jid = msg.key.remoteJid;
-    if (!jid || jid.endsWith("@g.us")) return; // ignore group chats
+    if (!jid || jid.endsWith("@g.us") || jid === "status@broadcast") return; // ignore group chats and broadcasts
+
+    // Ignore messages sent by our bot
+    if (msg.key.id && this.botSentMessageIds.has(msg.key.id)) return;
+
+    const userJid = this.sock?.user?.id;
+    const userDigits = userJid ? userJid.replace(/[^0-9]/g, "") : "";
+    const jidDigits = jid.replace(/[^0-9]/g, "");
+    const pushName = msg.pushName || "";
+
+    const { allowlistRecipient } = await import("./active-channel.js");
+    if (userDigits) allowlistRecipient("WHATSAPP", userDigits);
+
+    // 1. Self-chat: merchant texting themselves
+    const isSelfChat = Boolean(
+      (userDigits && jidDigits === userDigits) ||
+      (msg.key.fromMe && (userDigits === "" || jidDigits === userDigits))
+    );
+
+    // 2. Atharva Chaskar: team member / collaborator for demo
+    const atharvaEnvPhone = (process.env.ATHARVA_PHONE || process.env.ATHARVA_WHATSAPP || "").replace(/[^0-9]/g, "");
+    const isAtharva = Boolean(
+      /atharva|chaskar/i.test(pushName) ||
+      (atharvaEnvPhone && jidDigits === atharvaEnvPhone) ||
+      this.atharvaJids.has(jid) ||
+      this.atharvaJids.has(jidDigits)
+    );
+
+    if (isAtharva) {
+      this.atharvaJids.add(jid);
+      this.atharvaJids.add(jidDigits);
+      allowlistRecipient("WHATSAPP", jidDigits);
+    }
+
+    // 3. STRICT PRIVACY GUARD: DO NOT access any other personal/client/group chats
+    if (!isSelfChat && !isAtharva) {
+      return;
+    }
 
     const text = msg.message.conversation ?? msg.message.extendedTextMessage?.text ?? "";
     if (!text.trim()) return;
 
     const receivedAt = new Date();
-    const decisionMatch = /^(APPROVE|REJECT)\s+(\S+)/i.exec(text.trim());
+    const senderName = isSelfChat ? "Merchant (Owner)" : (pushName || "Atharva Chaskar");
+    const role: IdentityRole = isSelfChat ? "OWNER" : "STAFF";
 
+    const decisionMatch = /^(APPROVE|REJECT)\s+(\S+)/i.exec(text.trim());
     if (decisionMatch) {
-      // Allowed even when fromMe: if DEMO_WHATSAPP_RECIPIENT is the same
-      // number that scanned the QR, the decision card lands in that
-      // number's own self-chat, and every message there — including the
-      // owner's own reply — syncs back with fromMe:true. This regex only
-      // ever matches a reply that STARTS with "APPROVE "/"REJECT "; a
-      // bot-authored card always starts with the agent avatar/name line,
-      // so this can't loop back on our own outbound sends.
       await this.onEvent({
         channel: "WHATSAPP",
         storeId: this.storeId,
-        role: "OWNER",
+        role,
         identityId: jid,
         externalId: jid,
         kind: "BUTTON",
         button: { decisionId: decisionMatch[2]!, action: decisionMatch[1]!.toUpperCase() as "APPROVE" | "REJECT" },
         receivedAt,
+        senderName,
       });
       return;
     }
 
-    if (msg.key.fromMe) return; // don't reprocess our own outbound text as free-text inbound
-
     await this.onEvent({
       channel: "WHATSAPP",
       storeId: this.storeId,
-      role: "OWNER",
+      role,
       identityId: jid,
       externalId: jid,
       kind: "TEXT",
       text,
       receivedAt,
+      senderName,
     });
   }
 
@@ -190,7 +220,15 @@ export class BaileysWhatsAppChannel implements ChannelAdapter {
 
   async sendText(msg: OutboundText): Promise<void> {
     const sock = this.assertConnected();
-    await sock.sendMessage(this.jidFor(msg.toIdentityId), { text: msg.text });
+    const target = this.jidFor(msg.toIdentityId);
+    const res = await sock.sendMessage(target, { text: msg.text });
+    if (res?.key?.id) {
+      this.botSentMessageIds.add(res.key.id);
+      if (this.botSentMessageIds.size > 2000) {
+        const first = this.botSentMessageIds.values().next().value;
+        if (first) this.botSentMessageIds.delete(first);
+      }
+    }
   }
 
   async sendCard(card: OutboundCard): Promise<void> {
@@ -199,14 +237,27 @@ export class BaileysWhatsAppChannel implements ChannelAdapter {
     for (const b of card.buttons ?? []) {
       lines.push(`• Reply "${b.action} ${card.decisionId}" to *${b.label}*`);
     }
-    await sock.sendMessage(this.jidFor(card.toIdentityId), { text: lines.join("\n") });
+    const target = this.jidFor(card.toIdentityId);
+    const res = await sock.sendMessage(target, { text: lines.join("\n") });
+    if (res?.key?.id) {
+      this.botSentMessageIds.add(res.key.id);
+      if (this.botSentMessageIds.size > 2000) {
+        const first = this.botSentMessageIds.values().next().value;
+        if (first) this.botSentMessageIds.delete(first);
+      }
+    }
   }
 
   async sendVoiceNote(note: OutboundVoiceNote): Promise<void> {
     const sock = this.assertConnected();
-    // Sending an actual .ogg/opus voice note requires encoding the OS TTS
-    // output first; text delivery of the script is the honest fallback,
-    // matching WhatsAppChannel's (Meta Cloud API) same tradeoff.
-    await sock.sendMessage(this.jidFor(note.toIdentityId), { text: `🔊 ${note.script}` });
+    const target = this.jidFor(note.toIdentityId);
+    const res = await sock.sendMessage(target, { text: `🔊 ${note.script}` });
+    if (res?.key?.id) {
+      this.botSentMessageIds.add(res.key.id);
+      if (this.botSentMessageIds.size > 2000) {
+        const first = this.botSentMessageIds.values().next().value;
+        if (first) this.botSentMessageIds.delete(first);
+      }
+    }
   }
 }

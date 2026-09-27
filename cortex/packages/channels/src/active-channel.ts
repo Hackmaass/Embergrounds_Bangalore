@@ -34,6 +34,13 @@ function parseAllowlist(raw: string | undefined): Set<string> {
   );
 }
 
+const dynamicAllowlist = new Set<string>();
+
+export function allowlistRecipient(channel: "WHATSAPP" | "TELEGRAM", identityId: string): void {
+  const digits = digitsOf(identityId);
+  if (digits) dynamicAllowlist.add(digits);
+}
+
 /**
  * The outbound gate above stops us messaging a stranger — it does nothing
  * about a stranger messaging us. Every inbound WhatsApp/Telegram event is
@@ -45,7 +52,8 @@ function parseAllowlist(raw: string | undefined): Set<string> {
  */
 export function isAllowlistedSender(channel: "WHATSAPP" | "TELEGRAM", identityId: string): boolean {
   const allowlist = parseAllowlist(channel === "WHATSAPP" ? process.env.WHATSAPP_ALLOWLIST : process.env.TELEGRAM_ALLOWLIST);
-  return allowlist.has(digitsOf(identityId));
+  const digits = digitsOf(identityId);
+  return allowlist.has(digits) || dynamicAllowlist.has(digits);
 }
 
 /**
@@ -58,10 +66,10 @@ export function isAllowlistedSender(channel: "WHATSAPP" | "TELEGRAM", identityId
  * people who never agreed to receive anything from this demo).
  *
  * Now: nothing is sent live unless the resolved recipient's digits are in
- * WHATSAPP_ALLOWLIST / TELEGRAM_ALLOWLIST. No allowlist configured = every
- * live send is blocked (logged, not delivered) until you explicitly opt a
- * number in. DEMO_WHATSAPP_RECIPIENT / DEMO_TELEGRAM_RECIPIENT still
- * redirects every send to one number for convenience, but that redirected
+ * WHATSAPP_ALLOWLIST / TELEGRAM_ALLOWLIST or dynamicAllowlist. No allowlist
+ * configured = every live send is blocked (logged, not delivered) until you
+ * explicitly opt a number in. DEMO_WHATSAPP_RECIPIENT / DEMO_TELEGRAM_RECIPIENT
+ * still redirects every send to one number for convenience, but that redirected
  * number is checked against the allowlist too — misconfiguring the
  * redirect can never bypass the gate.
  */
@@ -71,7 +79,7 @@ function withSafetyGate(channel: ChannelAdapter, overrideId: string | undefined,
   function resolve(requestedId: string): string | undefined {
     const target = overrideId ?? requestedId;
     const digits = digitsOf(target);
-    if (!allowlist.has(digits)) {
+    if (!allowlist.has(digits) && !dynamicAllowlist.has(digits)) {
       console.error(
         `[safety] BLOCKED live ${channel.channel} send to "${target}" — not in the allowlist. ` +
           `Set WHATSAPP_ALLOWLIST / TELEGRAM_ALLOWLIST (comma-separated numbers) to permit specific recipients. Nothing was sent.`,

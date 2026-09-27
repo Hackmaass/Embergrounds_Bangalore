@@ -94,7 +94,15 @@ async function main(): Promise<void> {
       if (event.kind === "BUTTON" && event.button) {
         await decideDecision(db, { decisionId: event.button.decisionId, storeId: DEMO_STORE_ID, action: event.button.action, source: "TELEGRAM" });
       } else if (event.kind === "TEXT" && event.text) {
-        await dispatchInboundText({ db, storeId: DEMO_STORE_ID, role: event.role, identityId: event.identityId, text: event.text });
+        await dispatchInboundText({
+          db,
+          storeId: DEMO_STORE_ID,
+          role: event.role,
+          identityId: event.identityId,
+          text: event.text,
+          senderName: "Telegram User",
+          channel: "TELEGRAM",
+        });
       }
     }, telegramAbort.signal).catch((err) => console.error("[telegram] polling loop crashed:", err));
   }
@@ -118,7 +126,15 @@ async function main(): Promise<void> {
       if (event.kind === "BUTTON" && event.button) {
         await decideDecision(db, { decisionId: event.button.decisionId, storeId: DEMO_STORE_ID, action: event.button.action, source: "WHATSAPP" });
       } else if (event.kind === "TEXT" && event.text) {
-        await dispatchInboundText({ db, storeId: DEMO_STORE_ID, role: event.role, identityId: event.identityId, text: event.text });
+        await dispatchInboundText({
+          db,
+          storeId: DEMO_STORE_ID,
+          role: event.role,
+          identityId: event.identityId,
+          text: event.text,
+          senderName: event.senderName,
+          channel: "WHATSAPP",
+        });
       }
     })
     .catch((err) => console.error("[whatsapp] failed to start:", err));

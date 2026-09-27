@@ -7,11 +7,14 @@ export interface InboundTextContext {
   role: IdentityRole;
   identityId: string;
   text: string;
+  senderName?: string;
+  channel?: "WHATSAPP" | "TELEGRAM";
 }
 
 export interface InboundTextOutcome {
   handled: boolean;
   routedTo?: string;
+  replyText?: string;
 }
 
 export type InboundTextHandler = (ctx: InboundTextContext) => Promise<InboundTextOutcome>;

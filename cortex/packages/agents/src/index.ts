@@ -6,7 +6,14 @@ import * as vikram from "./vikram/index.js";
 import * as meera from "./meera/index.js";
 import * as studio from "./studio/index.js";
 
+import { registerInboundTextHandler } from "@cortex/runtime";
+import { handleInboundMessage } from "./orchestrator.js";
+
 export { priya, aman, munim, vikram, meera, studio };
+export * from "./orchestrator.js";
+
+// Register master inbound message orchestrator
+registerInboundTextHandler(handleInboundMessage);
 
 export type AgentRunner = (db: CortexDb, storeId: string) => Promise<{ runId: string }>;
 

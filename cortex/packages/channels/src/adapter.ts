@@ -12,6 +12,7 @@ export interface InboundEvent {
   text?: string;
   button?: { decisionId: string; action: "APPROVE" | "REJECT" };
   receivedAt: Date;
+  senderName?: string;
 }
 
 export interface OutboundCard {

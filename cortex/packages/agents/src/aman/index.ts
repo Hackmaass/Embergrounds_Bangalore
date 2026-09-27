@@ -35,7 +35,14 @@ registerInboundTextHandler(async ({ db, storeId, text }) => {
  * no merchant approval gate, because nothing here moves money (it either
  * confirms a payment that already succeeded, or opens a support ticket).
  */
-export async function checkPayment(db: CortexDb, storeId: string, amount: number): Promise<void> {
+export interface CheckPaymentResult {
+  status: "SUCCESS" | "PENDING" | "NOT_FOUND";
+  txnId?: string;
+  utr?: string;
+  ticketId?: string;
+}
+
+export async function checkPayment(db: CortexDb, storeId: string, amount: number): Promise<CheckPaymentResult> {
   const { taskId } = await startRun(db, { storeId, agentId: AGENT_ID, label: `Check payment ₹${amount}` });
 
   const matches = paytmPgMock.findRecentByAmount(amount, LOOKUP_WINDOW_MINUTES);
@@ -88,7 +95,7 @@ export async function checkPayment(db: CortexDb, storeId: string, amount: number
     }
 
     await completeTask(db, taskId, "DONE");
-    return;
+    return { status: "SUCCESS", txnId: success.txn_id, utr: success.utr };
   }
 
   // PENDING at the issuing bank, or nothing found — either way this needs
@@ -121,6 +128,7 @@ export async function checkPayment(db: CortexDb, storeId: string, amount: number
   }
 
   await completeTask(db, taskId, "DONE");
+  return { status: pending ? "PENDING" : "NOT_FOUND", ticketId };
 }
 
 /** Manual "Run now" for Aman is a no-op status check — the real trigger is
