@@ -1,0 +1,17 @@
+# Dependencies & build
+node_modules/
+dist/
+build/
+.cache/
+
+# Read-only reference architecture
+paperclip/
+
+# Environment & local credentials
+.env
+.env.local
+*.log
+
+# OS artifacts
+Thumbs.db
+.DS_Store
