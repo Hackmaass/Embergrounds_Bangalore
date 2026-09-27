@@ -12,6 +12,7 @@ import {
   registerTelegramChannel,
   getActiveWhatsAppChannel,
   getActiveTelegramChannel,
+  isAllowlistedSender,
 } from "@cortex/channels";
 import type { ActivityEvent } from "@cortex/shared";
 import { cortexRouter } from "./routes/cortex.routes.js";
@@ -83,6 +84,13 @@ async function main(): Promise<void> {
   if (process.env.TELEGRAM_BOT_TOKEN) {
     registerTelegramChannel(new TelegramChannel(process.env.TELEGRAM_BOT_TOKEN));
     void pollTelegramUpdates(process.env.TELEGRAM_BOT_TOKEN, DEMO_STORE_ID, async (event) => {
+      // The outbound safety gate stops us messaging a stranger; this stops
+      // a stranger's message being processed as the store owner. Same
+      // allowlist, same default-deny — see @cortex/channels active-channel.ts.
+      if (!isAllowlistedSender("TELEGRAM", event.identityId)) {
+        console.error(`[safety] ignored inbound TELEGRAM message from non-allowlisted sender "${event.identityId}"`);
+        return;
+      }
       if (event.kind === "BUTTON" && event.button) {
         await decideDecision(db, { decisionId: event.button.decisionId, storeId: DEMO_STORE_ID, action: event.button.action, source: "TELEGRAM" });
       } else if (event.kind === "TEXT" && event.text) {
@@ -100,6 +108,13 @@ async function main(): Promise<void> {
   registerWhatsAppChannel(whatsapp);
   void whatsapp
     .connect(DEMO_STORE_ID, async (event) => {
+      // Same reasoning as the Telegram inbound gate above: anyone who ever
+      // received a message from this number (or messages it unprompted)
+      // must not have their reply processed as the store owner.
+      if (!isAllowlistedSender("WHATSAPP", event.identityId)) {
+        console.error(`[safety] ignored inbound WHATSAPP message from non-allowlisted sender "${event.identityId}"`);
+        return;
+      }
       if (event.kind === "BUTTON" && event.button) {
         await decideDecision(db, { decisionId: event.button.decisionId, storeId: DEMO_STORE_ID, action: event.button.action, source: "WHATSAPP" });
       } else if (event.kind === "TEXT" && event.text) {
