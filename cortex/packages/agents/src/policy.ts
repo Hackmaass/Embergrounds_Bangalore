@@ -14,6 +14,8 @@ export const POLICY = {
   PROCUREMENT_TOTAL_CAP: 10000,
   KHATA_BALANCE_THRESHOLD: 5000,
   KHATA_DAYS_THRESHOLD: 15,
+  PAYROLL_TOTAL_CAP: 150000,
+  SHIFT_START: "09:00",
   STORE_QUIET_HOURS: "20:00-10:00", // AGENTS.md §P4.3 — store-level khata reminders
   STUDIO_QUIET_HOURS: "20:00-08:00", // AGENTS.md §5.4 — default for compiled agents
 } as const;

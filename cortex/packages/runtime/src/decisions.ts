@@ -15,8 +15,23 @@ import { getAgentRow } from "./registry.js";
 
 const SECRET = process.env.CORTEX_DECISION_SECRET ?? "cortex-dev-secret-change-me";
 
+/** Deterministic key ordering: the JSONB column round-trips `payload`
+ * through Postgres, which does not preserve insertion key order, so signing
+ * with plain `JSON.stringify` would fail verification on every legitimate
+ * decision (not just tampered ones). Sorting keys recursively makes the
+ * signature stable across that round-trip. */
+export function stableStringify(value: unknown): string {
+  if (value instanceof Date) return JSON.stringify(value); // toISOString(), not enumerable-property object walk
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function sign(payload: unknown): string {
-  return crypto.createHmac("sha256", SECRET).update(JSON.stringify(payload)).digest("hex");
+  return crypto.createHmac("sha256", SECRET).update(stableStringify(payload)).digest("hex");
 }
 
 export interface ExecutorContext {
@@ -74,11 +89,14 @@ export type DecisionRow = typeof schema.decisions.$inferSelect;
 export async function stageDecision(db: CortexDb, input: StageDecisionInput): Promise<DecisionRow> {
   const idempotencyKey = input.idempotencyKey ?? input.id ?? makeId("idem");
 
+  // Re-running the same routine before its previous decision has moved on
+  // (or after it's already been decided) must never attempt a second
+  // insert under the same idempotency key — always hand back what's there.
   const [existing] = await db
     .select()
     .from(schema.decisions)
     .where(eq(schema.decisions.idempotencyKey, idempotencyKey));
-  if (existing && existing.status === "AWAITING_APPROVAL") return existing;
+  if (existing) return existing;
 
   const id = input.id ?? makeId("dec");
   const createdAt = now();
@@ -157,6 +175,18 @@ export async function decideDecision(db: CortexDb, args: DecideDecisionInput): P
   if (now().getTime() > row.expiresAt.getTime()) {
     await db.update(schema.decisions).set({ status: "EXPIRED" }).where(eq(schema.decisions.id, row.id));
     return { ok: false, httpStatus: 409, error: "EXPIRED", status: "EXPIRED" };
+  }
+
+  const expectedSignature = sign({
+    id: row.id,
+    storeId: row.storeId,
+    agentId: row.agentId,
+    kind: row.kind,
+    payload: row.payload,
+    expiresAt: row.expiresAt.toISOString(),
+  });
+  if (row.signature !== expectedSignature) {
+    throw new Error(`Decision ${row.id} failed signature verification — payload row does not match its signed contract`);
   }
 
   const kind = row.kind as DecisionKind;

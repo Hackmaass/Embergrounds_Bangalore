@@ -29,8 +29,22 @@ export async function getStore(db: CortexDb, storeId: string): Promise<Store> {
   };
 }
 
+// Fixed roster order (AGENTS.md §5.1 / FRONTEND_SPEC §2 "6-slot grid").
+// Postgres gives no ordering guarantee on plain SELECTs, and UPDATEs can
+// shuffle physical row order — without this the roster cards visibly
+// reorder mid-demo every time an agent's metric changes.
+const CORE_AGENT_ORDER = ["priya-sales", "aman-support", "vikram-procurement", "munim-accounts", "meera-staff"];
+
 export async function listAgents(db: CortexDb, storeId: string): Promise<AgentSummary[]> {
   const rows = await db.select().from(schema.agents).where(eq(schema.agents.storeId, storeId));
+  rows.sort((a, b) => {
+    const ai = CORE_AGENT_ORDER.indexOf(a.id);
+    const bi = CORE_AGENT_ORDER.indexOf(b.id);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  });
   return rows.map(
     (r): AgentSummary => ({
       id: r.id,
@@ -69,6 +83,24 @@ export async function setAgentStatus(
     .update(schema.agents)
     .set({ status })
     .where(and(eq(schema.agents.storeId, storeId), eq(schema.agents.id, agentId)));
+}
+
+/** Adds `deltaRupees` to whatever ₹ figure is already in the agent's
+ * metric_value (e.g. "₹14,800 (Wk)" + 3200 -> "₹18,000 (Wk)") instead of
+ * clobbering the running total — a metric that visibly drops every time
+ * the AI succeeds would read as a bug during the demo. */
+export async function bumpRupeeMetric(
+  db: CortexDb,
+  storeId: string,
+  agentId: string,
+  metricLabel: string,
+  deltaRupees: number,
+  suffix: string,
+): Promise<void> {
+  const row = await getAgentRow(db, storeId, agentId);
+  const current = Number(row.metricValue.replace(/[^\d.]/g, "")) || 0;
+  const next = current + deltaRupees;
+  await setAgentMetric(db, storeId, agentId, metricLabel, `₹${next.toLocaleString("en-IN")} ${suffix}`.trim());
 }
 
 export async function setAgentMetric(

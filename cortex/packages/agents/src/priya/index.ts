@@ -13,7 +13,7 @@ import {
   completeTask,
   recordCost,
   getSpentToday,
-  setAgentMetric,
+  bumpRupeeMetric,
 } from "@cortex/runtime";
 import { generateCouponCode } from "@cortex/connectors";
 import { POLICY } from "../policy.js";
@@ -189,7 +189,7 @@ registerDecisionExecutor("VOUCHER_CAMPAIGN", async ({ db, storeId, agentId, payl
   const projectedRevenue = payload.projectedRevenue as number;
 
   await recordCost(db, { storeId, agentId, kind: "WHATSAPP_MESSAGE", amount: costRupees, units: cohortSize });
-  await setAgentMetric(db, storeId, agentId, "Recovered Revenue", `₹${projectedRevenue} (Wk)`);
+  await bumpRupeeMetric(db, storeId, agentId, "Recovered Revenue", projectedRevenue, "(Wk)");
 
   return {
     result: { dispatched_vouchers: cohortSize, attributed_projected_revenue: projectedRevenue },

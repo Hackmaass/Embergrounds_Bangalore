@@ -10,3 +10,4 @@ export * from "./procurement.js";
 export * from "./khata.js";
 export * from "./accounts.js";
 export * from "./staff.js";
+export * from "./support.js";

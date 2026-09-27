@@ -1,7 +1,12 @@
 import type { CortexDb } from "@cortex/db";
 import * as priya from "./priya/index.js";
+import * as aman from "./aman/index.js";
+import * as munim from "./munim/index.js";
+import * as vikram from "./vikram/index.js";
+import * as meera from "./meera/index.js";
+import * as studio from "./studio/index.js";
 
-export { priya };
+export { priya, aman, munim, vikram, meera, studio };
 
 export type AgentRunner = (db: CortexDb, storeId: string) => Promise<{ runId: string }>;
 
@@ -11,4 +16,8 @@ export type AgentRunner = (db: CortexDb, storeId: string) => Promise<{ runId: st
  * registration as a side effect. */
 export const AGENT_RUNNERS: Record<string, AgentRunner> = {
   [priya.AGENT_ID]: priya.run,
+  [aman.AGENT_ID]: aman.run,
+  [munim.AGENT_ID]: munim.run,
+  [vikram.AGENT_ID]: vikram.run,
+  [meera.AGENT_ID]: meera.run,
 };

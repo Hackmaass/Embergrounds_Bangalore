@@ -12,6 +12,7 @@ import { SUPPLIERS_DDL, PURCHASE_ORDERS_DDL } from "./schema/procurement.js";
 import { KHATA_ENTRIES_DDL } from "./schema/khata.js";
 import { SETTLEMENTS_DDL, COMPLIANCE_ITEMS_DDL } from "./schema/accounts.js";
 import { STAFF_DDL, ATTENDANCE_DDL, PAYROLL_DDL } from "./schema/staff.js";
+import { DISPUTE_RESOLUTIONS_DDL } from "./schema/support.js";
 
 // Idempotent DDL executed once at boot — no migration history. Order
 // respects FK-shaped dependencies even though we don't declare real FKs
@@ -36,6 +37,7 @@ const DDL_IN_ORDER = [
   STAFF_DDL,
   ATTENDANCE_DDL,
   PAYROLL_DDL,
+  DISPUTE_RESOLUTIONS_DDL,
 ];
 
 export async function runMigrations(db: CortexDb): Promise<void> {

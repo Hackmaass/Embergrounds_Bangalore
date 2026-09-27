@@ -6,6 +6,7 @@ export * from "./registry.js";
 export * from "./cost-ledger.js";
 export * from "./tool-gateway.js";
 export * from "./decisions.js";
+export * from "./inbound.js";
 export * from "./task-dag.js";
 export * from "./scheduler.js";
 export * from "./llm.js";

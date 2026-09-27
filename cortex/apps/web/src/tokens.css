@@ -1,0 +1,21 @@
+/* FRONTEND_SPEC.md §6 — Official Color Palette & Design Tokens */
+:root {
+  --navy: #002970;
+  --sky: #00baf2;
+  --wa-header: #075e54;
+  --wa-green: #25d366;
+  --wa-wallpaper: #ece5dd;
+  --card-white: #ffffff;
+  --card-border: #e2e8f0;
+  --card-radius: 12px;
+  --status-green: #10b981;
+  --warning-amber: #f59e0b;
+  --danger-red: #ef4444;
+  --decision-purple: #8b5cf6;
+  --slate: #64748b;
+  --slate-bg: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-muted: #64748b;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-card-hover: 0 4px 12px rgba(15, 23, 42, 0.1);
+}

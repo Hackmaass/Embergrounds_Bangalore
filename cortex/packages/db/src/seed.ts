@@ -41,6 +41,7 @@ export async function clearDemoStore(db: CortexDb, storeId = DEMO_STORE_ID): Pro
     schema.staff,
     schema.attendance,
     schema.payroll,
+    schema.disputeResolutions,
   ];
   for (const table of tables) {
     await db.delete(table).where(eq(table.storeId, storeId));
@@ -74,7 +75,7 @@ export async function seedDemoStore(db: CortexDb, storeId = DEMO_STORE_ID): Prom
 
   // --- Sales baseline + yesterday's evening dip (Priya) ---
   const buckets = generateBaselineWithDip({
-    baselineHourlyAmount: 2000,
+    baselineHourlyAmount: 4210,
     dipHours: [18, 19, 20],
     dipFactor: 0.62,
     days: 30,
@@ -93,7 +94,7 @@ export async function seedDemoStore(db: CortexDb, storeId = DEMO_STORE_ID): Prom
   // --- Inventory: Butter Paneer stockout that caused the dip ---
   const stockoutAt = new Date();
   stockoutAt.setUTCDate(stockoutAt.getUTCDate() - 1);
-  stockoutAt.setUTCHours(17, 45, 0, 0);
+  stockoutAt.setUTCHours(12, 15, 0, 0); // 17:45 IST (UTC+5:30)
   const restockedAt = new Date();
   restockedAt.setUTCHours(7, 0, 0, 0);
 
@@ -103,13 +104,31 @@ export async function seedDemoStore(db: CortexDb, storeId = DEMO_STORE_ID): Prom
       storeId,
       sku: "Butter Paneer",
       unit: "kg",
-      qtyOnHand: 12,
-      dailyVelocity: 13,
+      qtyOnHand: 11,
+      dailyVelocity: 12,
       reorderLevel: 15,
       lastPrice: 305,
       grossMarginPct: 45,
       outOfStockAt: stockoutAt,
       restockedAt,
+    },
+    // Deliberately below cover but priced so the reorder total (40 tins *
+    // ~₹310 ≈ ₹12,400) breaches PROCUREMENT_TOTAL_CAP (₹10,000) — exercises
+    // Vikram's GUARDRAIL_BLOCKED path with a realistic "large order needs
+    // review" scenario, not contorted data. Left with no outOfStockAt so
+    // Priya's root-cause lookup still resolves to Butter Paneer.
+    {
+      id: id("inv"),
+      storeId,
+      sku: "Ghee (tin)",
+      unit: "tin",
+      qtyOnHand: 2,
+      dailyVelocity: 40,
+      reorderLevel: 50,
+      lastPrice: 305,
+      grossMarginPct: 20,
+      outOfStockAt: null,
+      restockedAt: null,
     },
   ]);
 
@@ -203,6 +222,19 @@ export async function seedDemoStore(db: CortexDb, storeId = DEMO_STORE_ID): Prom
     soundboxLag: true,
     soundboxAnnounced: false,
   });
+  // Historical resolved disputes so Aman's "18 UPI Holds" roster metric
+  // starts at its documented baseline and accumulates from there, instead
+  // of visibly dropping to "1" the first time a new dispute resolves.
+  await db.insert(schema.disputeResolutions).values(
+    Array.from({ length: 18 }, (_, i) => ({
+      id: id("disp"),
+      storeId,
+      txnId: `TXN-HIST-${i}`,
+      amount: 200 + i * 25,
+      resolvedAt: daysAgo(i + 1),
+    })),
+  );
+
   paytmPgMock.seed({
     txn_id: "TXN-9021-90",
     amount: 500,
