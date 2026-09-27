@@ -5,7 +5,7 @@ export function StoreHeader(props: { store?: Store; live: boolean }) {
   return (
     <header className="store-header">
       <div className="store-header__left">
-        <div className="store-header__badge">paytm</div>
+        <div className="store-header__badge">cortex</div>
         <div className="store-header__name">{store?.name ?? "Loading store…"}</div>
         {store && <div className="store-header__gstin">GSTIN: {store.gstin}</div>}
       </div>
