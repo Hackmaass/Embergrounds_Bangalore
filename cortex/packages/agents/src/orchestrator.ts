@@ -69,7 +69,22 @@ Just message your request in English or Hindi!`;
   }
 
   // --- B. AMAN: CUSTOMER SUPPORT & PAYMENT / UPI DISPUTES ---
-  if (/\b(check|payment|paisa|upi|soundbox|rupaye|rs|transaction|dispute|kat gaya|refund)\b/i.test(lower) || /₹\s*\d+/.test(rawText)) {
+  if (/\b(aman|check|payment|paisa|upi|soundbox|rupaye|rs|transaction|dispute|kat gaya|refund)\b/i.test(lower) || /₹\s*\d+/.test(rawText)) {
+    if (/^(hi|hello|hey|namaste)?\s*aman[\s\.,!]*$/i.test(lower)) {
+      const reply = `🛡️ *Aman (Support & UPI Desk)*
+
+Namaste ${greetingName}! Aman here. I monitor your Paytm Soundbox, counter payments, and UPI dispute holds in real-time.
+
+*Status:*
+• Soundbox: *ACTIVE* (88% battery, edge override enabled)
+• Past Disputes Resolved: *18 UPI holds* auto-cleared
+• Active Disputes: *0 pending*
+
+Got a customer at the counter with an unannounced payment? Just text me the amount (e.g. *"Check ₹350"*).`;
+      await sendReply(ctx, "Aman", "🛡️", reply);
+      return { handled: true, routedTo: "aman-support", replyText: reply };
+    }
+
     const amountMatch = rawText.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)/i);
     const amount = amountMatch?.[1] ? Number(amountMatch[1]) : undefined;
 
@@ -120,7 +135,23 @@ To verify a counter payment, reply with the amount (e.g. *"Check ₹350"*).`;
   }
 
   // --- C. MUNIM: KHATA, UDHAAR, SETTLEMENTS & GST ---
-  if (/\b(khata|udhaar|credit|due|baaki|settlement|mismatch|gst|gstr|tax|fssai|compliance|licence|license)\b/i.test(lower)) {
+  if (/\b(munim|munimji|khata|udhaar|credit|due|baaki|settlement|mismatch|gst|gstr|tax|fssai|compliance|licence|license)\b/i.test(lower)) {
+    if (/^(hi|hello|hey|namaste|pranaam)?\s*(munim|munimji)[\s\.,!]*$/i.test(lower)) {
+      const reply = `📒 *Munim (Accounts & Khata Desk)*
+
+Pranaam ${greetingName}! Munim at your service. I keep your books reconciled and recover pending udhaar.
+
+*Ledger Snapshot:*
+• Total Overdue Udhaar (> 15 days): *₹18,600* across 3 customers
+• Top Debtor: *Verma Ji* (₹8,400 due)
+• Settled Mismatches: *₹620 short settlement* caught & flagged
+• Compliance: *GSTR-1 draft ready* for review
+
+Reply *"Who owes money?"* to inspect debtors, or *"Send khata reminders"* to stage polite WhatsApp payment links!`;
+      await sendReply(ctx, "Munim", "📒", reply);
+      return { handled: true, routedTo: "munim-accounts", replyText: reply };
+    }
+
     let reply = "";
 
     if (/send\s*reminder|remind|bhejo|udhaar mango/i.test(lower)) {
@@ -168,7 +199,21 @@ All tax & regulatory deadlines are on track!`;
   }
 
   // --- D. VIKRAM: STOCK & PROCUREMENT ---
-  if (/\b(stock|inventory|paneer|khoya|ghee|samaan|maal|supplier|vendor|purchase order|po|reorder|quote|rate|shortage)\b/i.test(lower)) {
+  if (/\b(vikram|stock|inventory|paneer|khoya|ghee|samaan|maal|supplier|vendor|purchase order|po|reorder|quote|rate|shortage)\b/i.test(lower)) {
+    if (/^(hi|hello|hey|namaste)?\s*vikram[\s\.,!]*$/i.test(lower)) {
+      const reply = `📦 *Vikram (Stock & Procurement)*
+
+Namaste ${greetingName}! Vikram here. I track counter inventory and negotiate supplier rates.
+
+*Critical Inventory Alert:*
+⚠️ *Butter Paneer*: Only *11 kg remaining* (< 1 day cover, daily burn is 12 kg/day!)
+• Best Supplier Quote: *Sharma Dairy* @ ₹310/kg (saves ₹15/kg vs Gupta Dairy)
+
+Reply *"Order paneer"* to draft a Purchase Order for 12 kg (₹3,720) with 1-tap merchant approval!`;
+      await sendReply(ctx, "Vikram", "📦", reply);
+      return { handled: true, routedTo: "vikram-procurement", replyText: reply };
+    }
+
     let reply = "";
 
     if (/order|reorder|buy|draft po|khareedo|manga/i.test(lower)) {
@@ -197,7 +242,24 @@ Draft Purchase Order staged!
   }
 
   // --- E. PRIYA: SALES & WIN-BACK ---
-  if (/\b(sale|sales|revenue|kamai|dip|deficit|discount|voucher|coupon|offer|customer|regular|report|win-?back)\b/i.test(lower)) {
+  if (/\b(priya|sale|sales|revenue|kamai|dip|deficit|discount|voucher|coupon|offer|customer|regular|report|win-?back)\b/i.test(lower)) {
+    if (/^(hi|hello|hey|namaste)?\s*priya[\s\.,!]*$/i.test(lower)) {
+      const reply = `🎯 *Priya (Sales & Win-back)*
+
+Namaste ${greetingName}! Priya here. I monitor counter sales trends, footfall, and revenue dips.
+
+*Sales Diagnostic Report:*
+• Yesterday's Revenue: *₹18,420* (Projected: ₹23,200)
+• Evening Deficit (6-9 PM): *-₹4,800* (-38% dip due to evening paneer stockout)
+• Affected Regulars: *28 customers*
+• Recovered Revenue (This Week): *₹14,800*
+
+Would you like me to dispatch the *10% recovery voucher* to the 28 regulars?
+• Reply *"Send vouchers"* to approve campaign (₹140 WhatsApp cost, projected ₹3,200 recovery)!`;
+      await sendReply(ctx, "Priya", "🎯", reply);
+      return { handled: true, routedTo: "priya-sales", replyText: reply };
+    }
+
     let reply = "";
 
     if (/send\s*voucher|run\s*offer|campaign|discount|bhejo offer/i.test(lower)) {
@@ -227,7 +289,23 @@ Staged 10% Recovery Voucher for 28 regular customers.
   }
 
   // --- F. MEERA: STAFF & ATTENDANCE ---
-  if (/\b(haazir|present|absent|attendance|chutti|staff|worker|raju|sunita|imran|deepak|anita|advance|salary|tankhwah|payroll|payday)\b/i.test(lower)) {
+  if (/\b(meera|haazir|present|absent|attendance|chutti|staff|worker|raju|sunita|imran|deepak|anita|advance|salary|tankhwah|payroll|payday)\b/i.test(lower)) {
+    if (/^(hi|hello|hey|namaste)?\s*meera[\s\.,!]*$/i.test(lower)) {
+      const reply = `👷 *Meera (Staff & Payroll Desk)*
+
+Namaste ${greetingName}! Meera here. I manage staff WhatsApp check-ins, advances, and payroll.
+
+*Today's Roster:*
+• Present: *5 / 6 staff* checked in
+• Absent: *Raju* (marked absent, no WhatsApp check-in by 9:00 AM)
+• Advance Balance: ₹3,500 total out
+• Next Payday: 1st of month (₹54,000 estimated net pay)
+
+Staff can message *"Haazir"* to check in, or you can reply *"Staff attendance"* to view the full attendance sheet.`;
+      await sendReply(ctx, "Meera", "👷", reply);
+      return { handled: true, routedTo: "meera-staff", replyText: reply };
+    }
+
     let reply = "";
 
     if (/haazir|present|check\s*in/i.test(lower)) {
@@ -329,11 +407,13 @@ async function sendReply(ctx: InboundTextContext, agentName: string, avatar: str
   // 1. Deliver text back to the WhatsApp sender
   try {
     const channel = getActiveWhatsAppChannel();
+    console.log(`[orchestrator] Sending reply from ${agentName} to ${ctx.identityId}...`);
     await channel.sendText({
       storeId: ctx.storeId,
       toIdentityId: ctx.identityId,
       text: replyText,
     });
+    console.log(`[orchestrator] Reply successfully delivered to ${ctx.identityId}`);
   } catch (err) {
     console.error(`[orchestrator] failed to send WhatsApp reply to ${ctx.identityId}:`, err);
   }

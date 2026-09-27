@@ -35,6 +35,12 @@ function parseAllowlist(raw: string | undefined): Set<string> {
 }
 
 const dynamicAllowlist = new Set<string>();
+let linkedOwnerDigits = "";
+
+export function setLinkedOwner(digits: string): void {
+  linkedOwnerDigits = digitsOf(digits);
+  if (linkedOwnerDigits) dynamicAllowlist.add(linkedOwnerDigits);
+}
 
 export function allowlistRecipient(channel: "WHATSAPP" | "TELEGRAM", identityId: string): void {
   const digits = digitsOf(identityId);
@@ -77,7 +83,10 @@ function withSafetyGate(channel: ChannelAdapter, overrideId: string | undefined,
   const allowlist = parseAllowlist(allowlistRaw);
 
   function resolve(requestedId: string): string | undefined {
-    const target = overrideId ?? requestedId;
+    let target = overrideId ?? requestedId;
+    if (target === "owner" && linkedOwnerDigits) {
+      target = linkedOwnerDigits;
+    }
     const digits = digitsOf(target);
     if (!allowlist.has(digits) && !dynamicAllowlist.has(digits)) {
       console.error(

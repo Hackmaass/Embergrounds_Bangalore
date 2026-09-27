@@ -107,3 +107,25 @@ test("orchestrator: Sales report query routes to Priya with yesterday's dip diag
   assert.ok(result.replyText?.includes("Sales Diagnostic Report"));
   assert.ok(result.replyText?.includes("Butter Paneer"));
 });
+
+test("orchestrator: User texting 'hello priya' directly routes to Priya with greeting and diagnostic report", async () => {
+  const db = await getDb();
+  await clearDemoStore(db);
+  await seedDemoStore(db);
+
+  const result = await handleInboundMessage({
+    db,
+    storeId: "store-ramesh",
+    role: "OWNER",
+    identityId: "owner",
+    senderName: "Merchant (Owner)",
+    text: "hello priya",
+    channel: "WHATSAPP",
+  });
+
+  assert.equal(result.handled, true);
+  assert.equal(result.routedTo, "priya-sales");
+  assert.ok(result.replyText?.includes("Priya here"));
+  assert.ok(result.replyText?.includes("10% recovery voucher"));
+});
+
