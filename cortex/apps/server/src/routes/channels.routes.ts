@@ -2,12 +2,18 @@ import { Router } from "express";
 import type { CortexDb } from "@cortex/db";
 import { DEMO_STORE_ID } from "@cortex/db";
 import { decideDecision, dispatchInboundText } from "@cortex/runtime";
-import { parseWhatsAppWebhook } from "@cortex/channels";
+import { parseWhatsAppWebhook, getWhatsAppLinkStatus } from "@cortex/channels";
 import { SimulatorInboundSchema } from "@cortex/shared";
 
 export function channelsRouter(db: CortexDb): Router {
   const router = Router();
   const storeId = DEMO_STORE_ID;
+
+  // Baileys QR-link status (OpenClaw's approach) — poll this to render the
+  // QR code and know when a real WhatsApp is actually linked.
+  router.get("/whatsapp/status", (_req, res) => {
+    res.json(getWhatsAppLinkStatus());
+  });
 
   // Meta webhook verification handshake (AGENTS.md §5.12). Live inbound
   // message handling is wired in the P3 gateways milestone.

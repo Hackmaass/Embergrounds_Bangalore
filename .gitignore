@@ -11,6 +11,8 @@ paperclip/
 .env
 .env.local
 *.log
+*.lock
+.claude/*.lock
 
 # OS artifacts
 Thumbs.db

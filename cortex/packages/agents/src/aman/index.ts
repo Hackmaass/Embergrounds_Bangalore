@@ -10,7 +10,7 @@ import {
   makeId,
 } from "@cortex/runtime";
 import { paytmPgMock } from "@cortex/connectors";
-import { simulatorWhatsapp } from "@cortex/channels";
+import { getActiveWhatsAppChannel } from "@cortex/channels";
 import { numberToHindiWords } from "./hindi-numbers.js";
 
 export const AGENT_ID = "aman-support";
@@ -109,11 +109,15 @@ export async function checkPayment(db: CortexDb, storeId: string, amount: number
   });
 
   if (pending) {
-    await simulatorWhatsapp.sendText({
-      storeId,
-      toIdentityId: pending.payer,
-      text: `Aapka ₹${amount} ka payment process ho raha hai. Bank confirmation aate hi turant update milega. — Ramesh Sweets`,
-    });
+    try {
+      await getActiveWhatsAppChannel().sendText({
+        storeId,
+        toIdentityId: pending.payer,
+        text: `Aapka ₹${amount} ka payment process ho raha hai. Bank confirmation aate hi turant update milega. — Ramesh Sweets`,
+      });
+    } catch (err) {
+      console.error(`[aman] pending-payment notice delivery failed for ${pending.payer}:`, err);
+    }
   }
 
   await completeTask(db, taskId, "DONE");

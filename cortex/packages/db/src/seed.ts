@@ -50,7 +50,11 @@ export async function clearDemoStore(db: CortexDb, storeId = DEMO_STORE_ID): Pro
 }
 
 export async function seedDemoStore(db: CortexDb, storeId = DEMO_STORE_ID): Promise<void> {
-  const whatsappStatus = process.env.WHATSAPP_ACCESS_TOKEN ? "CONNECTED" : "SIMULATOR";
+  // WhatsApp's real status comes from Baileys' live link state at request
+  // time (apps/server overlays it onto GET /workforce — see
+  // getWhatsAppLinkStatus in @cortex/channels), not from this seeded value,
+  // since a QR-linked session can connect/disconnect independently of boot.
+  const whatsappStatus = "SIMULATOR";
   const telegramStatus = process.env.TELEGRAM_BOT_TOKEN ? "CONNECTED" : "SIMULATOR";
 
   await db.insert(schema.stores).values({

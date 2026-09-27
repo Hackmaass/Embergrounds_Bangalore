@@ -16,7 +16,7 @@ import {
   setAgentMetric,
 } from "@cortex/runtime";
 import { getSupplierQuotes } from "@cortex/connectors";
-import { simulatorWhatsapp } from "@cortex/channels";
+import { getActiveWhatsAppChannel } from "@cortex/channels";
 import type { SupplierQuote } from "@cortex/shared";
 import { POLICY } from "../policy.js";
 
@@ -150,11 +150,21 @@ registerDecisionExecutor("PURCHASE_ORDER", async ({ db, storeId, decisionId, pay
       .where(eq(schema.inventory.id, item.id));
   }
 
-  await simulatorWhatsapp.sendText({
-    storeId,
-    toIdentityId: supplier,
-    text: `✅ PO confirmed: ${qty} ${sku} @ ₹${total}. Please deliver as quoted.`,
-  });
+  // getSupplierQuotes is a deterministic mock independent of the seeded
+  // `suppliers` table (AGENTS.md §P5) — resolve a real phone by name match
+  // when one exists; otherwise fall through to the name itself, which
+  // resolves fine against the simulator and fails safely (caught below)
+  // against a live channel.
+  const [supplierRow] = await db.select().from(schema.suppliers).where(and(eq(schema.suppliers.storeId, storeId), eq(schema.suppliers.name, supplier)));
+  try {
+    await getActiveWhatsAppChannel().sendText({
+      storeId,
+      toIdentityId: supplierRow?.phone ?? supplier,
+      text: `✅ PO confirmed: ${qty} ${sku} @ ₹${total}. Please deliver as quoted.`,
+    });
+  } catch (err) {
+    console.error(`[vikram] PO confirmation delivery failed for ${supplier}:`, err);
+  }
 
   return {
     result: { po_id: poId, supplier, total },

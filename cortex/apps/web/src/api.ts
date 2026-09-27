@@ -73,4 +73,6 @@ export const api = {
   }) => post<{ accepted: boolean; routed_to?: string }>("/api/channels/simulator/inbound", body),
 
   resetDemo: () => post<{ success: true; store_id: string; reset_at: string }>("/api/demo/reset", {}),
+
+  getWhatsAppStatus: () => get<{ status: "DISCONNECTED" | "QR_PENDING" | "CONNECTED"; qr?: string }>("/api/channels/whatsapp/status"),
 };

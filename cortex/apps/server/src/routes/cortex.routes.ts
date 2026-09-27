@@ -4,6 +4,7 @@ import { DEMO_STORE_ID } from "@cortex/db";
 import { activityBus, decideDecision, getActivitySnapshot } from "@cortex/runtime";
 import { getWorkforce } from "@cortex/runtime";
 import { AGENT_RUNNERS, studio } from "@cortex/agents";
+import { getWhatsAppLinkStatus } from "@cortex/channels";
 import { DecisionActionRequestSchema, type ActivityEvent } from "@cortex/shared";
 import { computeMetrics } from "../services/metrics.js";
 
@@ -12,7 +13,13 @@ export function cortexRouter(db: CortexDb): Router {
   const storeId = DEMO_STORE_ID; // single-store demo (AGENTS.md §5 base URL note)
 
   router.get("/workforce", async (_req, res) => {
-    res.json(await getWorkforce(db, storeId));
+    const workforce = await getWorkforce(db, storeId);
+    // The seeded whatsappStatus column reflects WHATSAPP_ACCESS_TOKEN
+    // (the unused Meta Cloud API path) — overlay the real Baileys link
+    // status so the roster header/simulator-input toggle match reality.
+    const waStatus = getWhatsAppLinkStatus().status;
+    workforce.store.channels.whatsapp = waStatus === "CONNECTED" ? "CONNECTED" : "SIMULATOR";
+    res.json(workforce);
   });
 
   router.get("/stream", async (_req, res) => {

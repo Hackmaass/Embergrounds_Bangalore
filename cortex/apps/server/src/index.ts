@@ -3,7 +3,17 @@ import cors from "cors";
 import { getDb, seedDemoStore, DEMO_STORE_ID } from "@cortex/db";
 import { AGENT_RUNNERS } from "@cortex/agents"; // side effect: registers decision executors
 import { activityBus, decideDecision, dispatchInboundText, Scheduler } from "@cortex/runtime";
-import { getVoiceProvider, pollTelegramUpdates } from "@cortex/channels";
+import {
+  getVoiceProvider,
+  pollTelegramUpdates,
+  BaileysWhatsAppChannel,
+  TelegramChannel,
+  registerWhatsAppChannel,
+  registerTelegramChannel,
+  getActiveWhatsAppChannel,
+  getActiveTelegramChannel,
+} from "@cortex/channels";
+import type { ActivityEvent } from "@cortex/shared";
 import { cortexRouter } from "./routes/cortex.routes.js";
 import { demoRouter } from "./routes/demo.routes.js";
 import { channelsRouter } from "./routes/channels.routes.js";
@@ -71,6 +81,7 @@ async function main(): Promise<void> {
   // demo is unaffected. Not verifiable in this environment (no bot token).
   const telegramAbort = new AbortController();
   if (process.env.TELEGRAM_BOT_TOKEN) {
+    registerTelegramChannel(new TelegramChannel(process.env.TELEGRAM_BOT_TOKEN));
     void pollTelegramUpdates(process.env.TELEGRAM_BOT_TOKEN, DEMO_STORE_ID, async (event) => {
       if (event.kind === "BUTTON" && event.button) {
         await decideDecision(db, { decisionId: event.button.decisionId, storeId: DEMO_STORE_ID, action: event.button.action, source: "TELEGRAM" });
@@ -79,6 +90,50 @@ async function main(): Promise<void> {
       }
     }, telegramAbort.signal).catch((err) => console.error("[telegram] polling loop crashed:", err));
   }
+
+  // WhatsApp via Baileys (OpenClaw's approach — QR-linked WhatsApp Web
+  // protocol, no Meta business verification needed). Always attempts to
+  // link; getActiveWhatsAppChannel() only ever returns it once actually
+  // CONNECTED, so every agent send stays on the SIMULATOR until then —
+  // never blocks the demo on a QR scan that may never happen.
+  const whatsapp = new BaileysWhatsAppChannel(process.env.WHATSAPP_AUTH_DIR ?? ".baileys-auth");
+  registerWhatsAppChannel(whatsapp);
+  void whatsapp
+    .connect(DEMO_STORE_ID, async (event) => {
+      if (event.kind === "BUTTON" && event.button) {
+        await decideDecision(db, { decisionId: event.button.decisionId, storeId: DEMO_STORE_ID, action: event.button.action, source: "WHATSAPP" });
+      } else if (event.kind === "TEXT" && event.text) {
+        await dispatchInboundText({ db, storeId: DEMO_STORE_ID, role: event.role, identityId: event.identityId, text: event.text });
+      }
+    })
+    .catch((err) => console.error("[whatsapp] failed to start:", err));
+
+  // Push every staged decision (the "1-tap approve" card) to whichever live
+  // channel is connected — DEMO_WHATSAPP_RECIPIENT / DEMO_TELEGRAM_RECIPIENT
+  // decide the real destination (see @cortex/channels active-channel.ts);
+  // without one set, this attempts a placeholder identity and fails
+  // safely (caught, logged) exactly like the per-agent sends above.
+  activityBus.on("activity", (event: ActivityEvent) => {
+    if (event.type !== "DECISION_STAGED" || !event.decision_id) return;
+    const card = {
+      storeId: DEMO_STORE_ID,
+      toIdentityId: "owner",
+      agentName: event.agent_name,
+      agentAvatar: event.agent_avatar,
+      message: event.message,
+      decisionId: event.decision_id,
+      decisionKind: event.decision_kind,
+      buttons: event.buttons,
+    };
+    getActiveWhatsAppChannel()
+      .sendCard(card)
+      .catch((err) => console.error("[whatsapp] failed to push decision card:", err));
+    if (process.env.TELEGRAM_BOT_TOKEN) {
+      getActiveTelegramChannel()
+        .sendCard(card)
+        .catch((err) => console.error("[telegram] failed to push decision card:", err));
+    }
+  });
 
   const app = express();
   app.use(cors());

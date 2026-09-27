@@ -16,7 +16,7 @@ import {
   now,
 } from "@cortex/runtime";
 import { generateUpiLink } from "@cortex/connectors";
-import { simulatorWhatsapp } from "@cortex/channels";
+import { getActiveWhatsAppChannel } from "@cortex/channels";
 import type { ReconciliationMismatch } from "@cortex/shared";
 import { POLICY } from "../policy.js";
 import { getKhataSummary } from "./ledger.js";
@@ -152,11 +152,15 @@ registerDecisionExecutor("KHATA_REMINDER_BATCH", async ({ db, storeId, agentId, 
       amount: c.balance,
       note: "Khata Payment",
     });
-    await simulatorWhatsapp.sendText({
-      storeId,
-      toIdentityId: c.customerId,
-      text: `Namaste ${c.name} ji! Aapka udhaar ₹${c.balance} baaki hai. Kripya is link se bhugtan karein: ${link}`,
-    });
+    try {
+      await getActiveWhatsAppChannel().sendText({
+        storeId,
+        toIdentityId: c.phone,
+        text: `Namaste ${c.name} ji! Aapka udhaar ₹${c.balance} baaki hai. Kripya is link se bhugtan karein: ${link}`,
+      });
+    } catch (err) {
+      console.error(`[munim] khata reminder delivery failed for ${c.customerId}:`, err);
+    }
   }
 
   const customerIds = customers.map((c) => c.customerId);

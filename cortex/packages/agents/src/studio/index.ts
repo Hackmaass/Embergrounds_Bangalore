@@ -1,10 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import type { CortexDb } from "@cortex/db";
 import { schema } from "@cortex/db";
-import { appendActivityEvent, makeId, startRun, completeTask } from "@cortex/runtime";
+import { appendActivityEvent, makeId, startRun, completeTask, getLlmClient } from "@cortex/runtime";
 import { CustomAgentSpecSchema, type CustomAgentGenerateRequest, type CustomAgentSpec, type StudioTool } from "@cortex/shared";
 import { POLICY } from "../policy.js";
-import { STUDIO_TEMPLATES, findTemplate } from "./templates.js";
+import { STUDIO_TEMPLATES, findTemplate, type TemplateBlueprint } from "./templates.js";
 
 export { STUDIO_TEMPLATES };
 
@@ -41,14 +41,18 @@ export interface RejectResult {
  * every field that matters for safety (tools catalogue, guardrails,
  * approval gate) is constructed in TypeScript and validated against
  * `CustomAgentSpecSchema` before it's ever persisted (PROPOSAL §4: "the
- * LLM drafts, the zod schema and guardrail engine decide").
+ * LLM drafts, the zod schema and guardrail engine decide"). The LLM
+ * classification step below is a closed-set choice validated against the
+ * same template catalogue keyword-matching uses — it can only ever pick an
+ * existing template or fall through to generic, never invent tools,
+ * triggers, or guardrails of its own.
  */
-export function compileSpec(input: CustomAgentGenerateRequest): GenerateResult | RejectResult {
+export async function compileSpec(input: CustomAgentGenerateRequest): Promise<GenerateResult | RejectResult> {
   if (UNSAFE_REQUEST_PATTERN.test(input.prompt)) {
     return { rejected: true, reason: "Requests that bypass merchant approval or use tools outside the sandboxed catalogue are not permitted." };
   }
 
-  const matchedTemplate = findTemplate(input.template_id) ?? matchByKeyword(input.prompt);
+  const matchedTemplate = findTemplate(input.template_id) ?? matchByKeyword(input.prompt) ?? (await classifyByLlm(input.prompt));
   const template = matchedTemplate ?? genericFallback();
 
   // A matched template already carries a presenter-ready name (e.g. "Udhaar
@@ -77,6 +81,31 @@ export function compileSpec(input: CustomAgentGenerateRequest): GenerateResult |
 function matchByKeyword(prompt: string) {
   const hit = KEYWORD_TOOL_MAP.find((k) => k.pattern.test(prompt));
   return hit ? findTemplate(hit.templateId) : undefined;
+}
+
+/**
+ * Only reached when the fast/free keyword regex above found nothing —
+ * keeps the common demo prompts (which all hit a keyword) from depending on
+ * a local model being up. Runs against the local Ollama model by default
+ * (see @cortex/runtime's getLlmClient); if it's unreachable or returns
+ * anything outside the closed template-id set, this returns undefined and
+ * the caller falls through to genericFallback exactly as it did before this
+ * classification step existed.
+ */
+async function classifyByLlm(prompt: string): Promise<TemplateBlueprint | undefined> {
+  const catalogue = STUDIO_TEMPLATES.map((t) => `- ${t.template_id}: ${t.description}`).join("\n");
+  const system = [
+    "You classify a shop owner's request for an AI back-office teammate into one template id.",
+    "Available templates:",
+    catalogue,
+    "- generic: none of the above genuinely fit",
+    "",
+    "Reply with ONLY the template id — lowercase, no punctuation, no explanation.",
+  ].join("\n");
+
+  const { text } = await getLlmClient().complete({ system, prompt, maxTokens: 20 });
+  const answer = text.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  return findTemplate(answer);
 }
 
 function genericFallback() {

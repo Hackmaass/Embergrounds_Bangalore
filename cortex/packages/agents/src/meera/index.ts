@@ -19,7 +19,7 @@ import {
   hhmm,
 } from "@cortex/runtime";
 import { mockUpiPayout } from "@cortex/connectors";
-import { simulatorWhatsapp } from "@cortex/channels";
+import { getActiveWhatsAppChannel } from "@cortex/channels";
 import { POLICY } from "../policy.js";
 
 export const AGENT_ID = "meera-staff";
@@ -165,15 +165,20 @@ registerDecisionExecutor("PAYROLL_PAYOUT", async ({ db, storeId, decisionId, pay
 
   for (const p of payouts) {
     mockUpiPayout({ toVpaOrPhone: p.workerId, amount: p.netPay });
+    const [worker] = await db.select().from(schema.staff).where(and(eq(schema.staff.storeId, storeId), eq(schema.staff.id, p.workerId)));
     await db
       .update(schema.staff)
       .set({ advanceBalance: 0 })
       .where(and(eq(schema.staff.storeId, storeId), eq(schema.staff.id, p.workerId)));
-    await simulatorWhatsapp.sendVoiceNote({
-      storeId,
-      toIdentityId: p.workerId,
-      script: `${p.name} ji, is mahine aapki salary ₹${p.netPay} aapke UPI khaate mein bhej di gayi hai. Dhanyavaad!`,
-    });
+    try {
+      await getActiveWhatsAppChannel().sendVoiceNote({
+        storeId,
+        toIdentityId: worker?.phone ?? p.workerId,
+        script: `${p.name} ji, is mahine aapki salary ₹${p.netPay} aapke UPI khaate mein bhej di gayi hai. Dhanyavaad!`,
+      });
+    } catch (err) {
+      console.error(`[meera] payslip delivery failed for ${p.workerId}:`, err);
+    }
   }
 
   await db.insert(schema.payroll).values({

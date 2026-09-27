@@ -16,6 +16,7 @@ import {
   bumpRupeeMetric,
 } from "@cortex/runtime";
 import { generateCouponCode } from "@cortex/connectors";
+import { getActiveWhatsAppChannel } from "@cortex/channels";
 import { POLICY } from "../policy.js";
 
 export const AGENT_ID = "priya-sales";
@@ -187,6 +188,31 @@ registerDecisionExecutor("VOUCHER_CAMPAIGN", async ({ db, storeId, agentId, payl
   const cohortSize = payload.cohortSize as number;
   const costRupees = payload.costRupees as number;
   const projectedRevenue = payload.projectedRevenue as number;
+  const discountPct = payload.discountPct as number;
+  const couponCodes = payload.couponCodes as Array<{ customerId: string; code: string }>;
+
+  const customers = await db.select().from(schema.customers).where(eq(schema.customers.storeId, storeId));
+  const phoneById = new Map(customers.map((c) => [c.id, c.phone]));
+  const channel = getActiveWhatsAppChannel();
+
+  for (const [i, { customerId, code }] of couponCodes.entries()) {
+    // Paced, not fired in one burst: a live WhatsApp connection sending
+    // dozens of near-identical messages to the same JID in a few
+    // milliseconds is the canonical pattern anti-spam heuristics act on —
+    // exactly the flagging risk this integration was built to avoid. Only
+    // applies against a real channel — the simulator has no such risk and
+    // verify-api/demo runs shouldn't pay an artificial 8s tax for it.
+    if (i > 0 && channel.mode === "LIVE") await new Promise((resolve) => setTimeout(resolve, 300));
+    try {
+      await channel.sendText({
+        storeId,
+        toIdentityId: phoneById.get(customerId) ?? customerId,
+        text: `Namaste! Ramesh Sweets se ${discountPct}% off aapke agle order par. Code: ${code}`,
+      });
+    } catch (err) {
+      console.error(`[priya] voucher delivery failed for ${customerId}:`, err);
+    }
+  }
 
   await recordCost(db, { storeId, agentId, kind: "WHATSAPP_MESSAGE", amount: costRupees, units: cohortSize });
   await bumpRupeeMetric(db, storeId, agentId, "Recovered Revenue", projectedRevenue, "(Wk)");

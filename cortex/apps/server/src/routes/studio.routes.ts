@@ -16,7 +16,7 @@ export function studioRouter(db: CortexDb): Router {
     const parsed = CustomAgentGenerateRequestSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "INVALID_BODY", details: parsed.error.flatten() });
 
-    const outcome = studio.compileSpec(parsed.data);
+    const outcome = await studio.compileSpec(parsed.data);
     if (outcome.rejected) {
       return res.status(422).json({ error: "UNSAFE_SPEC_REQUEST", reason: outcome.reason });
     }
