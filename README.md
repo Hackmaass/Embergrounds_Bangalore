@@ -264,5 +264,5 @@ Once running on `http://localhost:5173`, test these live flows:
 ---
 
 ## 📄 License
-Built for the **Paytm AI Hackathon 2026** by Team **Embergrounds** (`Hackmaass/Embergrounds_Bangalore`).
+Built for the **EmberGrounds Hackathon Bangalore** (`Hackmaass/Embergrounds_Bangalore`).
 All rights reserved.
