@@ -1,0 +1,21 @@
+{
+  "name": "cortex",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "dev:server": "pnpm --filter @cortex/server dev",
+    "dev:web": "pnpm --filter @cortex/web dev",
+    "seed": "tsx scripts/seed-demo.ts",
+    "verify": "tsx scripts/verify-api.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2",
+    "@types/node": "^20.16.11"
+  }
+}
