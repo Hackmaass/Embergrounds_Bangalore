@@ -232,6 +232,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@cortex/connectors':
+        specifier: workspace:*
+        version: link:../connectors
       '@electric-sql/pglite':
         specifier: ^0.5.8
         version: 0.5.8
