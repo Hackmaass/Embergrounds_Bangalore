@@ -42,7 +42,6 @@ export async function clearDemoStore(db: CortexDb, storeId = DEMO_STORE_ID): Pro
     schema.attendance,
     schema.payroll,
   ];
-  const { eq } = await import("drizzle-orm");
   for (const table of tables) {
     // @ts-expect-error every one of these tables has a storeId column
     await db.delete(table).where(eq(table.storeId, storeId));
